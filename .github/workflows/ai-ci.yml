@@ -3,9 +3,9 @@ name: ai-ci
 on:
   pull_request:
     paths:
-      - 'P1/apps/ai/**'
-      - 'P1/tests/**'
-      - 'P1/.github/workflows/ai-ci.yml'
+      - 'apps/ai/**'
+      - 'tests/**'
+      - '.github/workflows/ai-ci.yml'
   push:
     branches: [main]
 
@@ -20,10 +20,10 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pytest pillow pydantic-settings structlog colorlog
+          pip install pytest pillow pydantic-settings structlog colorlog numpy opencv-python-headless
       - name: Run unit tests
         run: |
-          cd P1/apps/ai && python -m pytest -q tests/unit tests/test_invoice_pipeline.py
+          cd apps/ai && python -m pytest -q tests/unit tests/test_invoice_pipeline.py
       - name: Run integration tests
         run: |
-          cd P1/apps/ai && python -m pytest -q tests/integration
+          cd apps/ai && python -m pytest -q tests/integration
