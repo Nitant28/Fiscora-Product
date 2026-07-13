@@ -1,0 +1,2 @@
+Example Cafe
+42.50 USD

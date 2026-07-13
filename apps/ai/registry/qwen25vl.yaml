@@ -1,0 +1,14 @@
+name: Qwen2.5-VL
+version: "7B-Instruct"
+task: Semantic understanding
+language:
+  - en
+  - hi
+gpu: true
+ram: 8GB
+license: Apache-2
+status: production
+accuracy:
+  invoices: 94.2
+  receipts: 93.6
+latency: 1.24

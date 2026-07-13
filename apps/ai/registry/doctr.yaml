@@ -1,0 +1,13 @@
+name: DocTR
+version: "0.8"
+task: Layout detection
+language:
+  - en
+gpu: true
+ram: 3GB
+license: Apache-2
+status: production
+accuracy:
+  invoices: 95.7
+  receipts: 93.2
+latency: 0.91

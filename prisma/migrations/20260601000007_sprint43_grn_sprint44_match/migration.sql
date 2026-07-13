@@ -1,0 +1,30 @@
+-- Sprint 4.3 + 4.4: GRN and Three-Way Matching
+
+ALTER TYPE "MatchStatus" ADD VALUE IF NOT EXISTS 'PENDING';
+ALTER TYPE "MatchStatus" ADD VALUE IF NOT EXISTS 'MISMATCH';
+
+ALTER TABLE "PurchaseOrder" ADD COLUMN IF NOT EXISTS "orderedQuantity" INTEGER;
+
+ALTER TABLE "ThreeWayMatch" ADD COLUMN IF NOT EXISTS "poAmount" DOUBLE PRECISION;
+ALTER TABLE "ThreeWayMatch" ADD COLUMN IF NOT EXISTS "invoiceAmount" DOUBLE PRECISION;
+ALTER TABLE "ThreeWayMatch" ADD COLUMN IF NOT EXISTS "poQuantity" INTEGER;
+ALTER TABLE "ThreeWayMatch" ADD COLUMN IF NOT EXISTS "receivedQuantity" INTEGER;
+ALTER TABLE "ThreeWayMatch" ADD COLUMN IF NOT EXISTS "invoicedQuantity" INTEGER;
+
+ALTER TABLE "ThreeWayMatch" ALTER COLUMN "status" SET DEFAULT 'PENDING';
+
+CREATE TABLE IF NOT EXISTS "GoodsReceipt" (
+    "id" SERIAL NOT NULL,
+    "purchaseOrderId" INTEGER NOT NULL,
+    "quantityOrdered" INTEGER NOT NULL,
+    "quantityReceived" INTEGER NOT NULL,
+    "receivedById" INTEGER NOT NULL,
+    "receivedDate" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "notes" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "GoodsReceipt_pkey" PRIMARY KEY ("id")
+);
+
+ALTER TABLE "GoodsReceipt" ADD CONSTRAINT "GoodsReceipt_purchaseOrderId_fkey" FOREIGN KEY ("purchaseOrderId") REFERENCES "PurchaseOrder"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "GoodsReceipt" ADD CONSTRAINT "GoodsReceipt_receivedById_fkey" FOREIGN KEY ("receivedById") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

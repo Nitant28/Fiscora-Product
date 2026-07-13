@@ -1,0 +1,37 @@
+-- Sprint 3.1: RFQ Foundation
+
+CREATE TYPE "RFQStatus" AS ENUM ('DRAFT', 'OPEN', 'CLOSED', 'AWARDED');
+
+CREATE TABLE "RFQ" (
+    "id" SERIAL NOT NULL,
+    "title" TEXT NOT NULL,
+    "description" TEXT,
+    "status" "RFQStatus" NOT NULL DEFAULT 'DRAFT',
+    "categoryId" INTEGER NOT NULL,
+    "createdById" INTEGER NOT NULL,
+    "awardedVendorId" INTEGER,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "RFQ_pkey" PRIMARY KEY ("id")
+);
+
+CREATE TABLE "VendorBid" (
+    "id" SERIAL NOT NULL,
+    "rfqId" INTEGER NOT NULL,
+    "vendorId" INTEGER NOT NULL,
+    "quotedAmount" DOUBLE PRECISION NOT NULL,
+    "leadTimeDays" INTEGER NOT NULL,
+    "warrantyMonths" INTEGER NOT NULL,
+    "notes" TEXT,
+    "score" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "submittedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "VendorBid_pkey" PRIMARY KEY ("id")
+);
+
+ALTER TABLE "RFQ" ADD CONSTRAINT "RFQ_categoryId_fkey" FOREIGN KEY ("categoryId") REFERENCES "SpendCategory"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "RFQ" ADD CONSTRAINT "RFQ_createdById_fkey" FOREIGN KEY ("createdById") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "RFQ" ADD CONSTRAINT "RFQ_awardedVendorId_fkey" FOREIGN KEY ("awardedVendorId") REFERENCES "Vendor"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "VendorBid" ADD CONSTRAINT "VendorBid_rfqId_fkey" FOREIGN KEY ("rfqId") REFERENCES "RFQ"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "VendorBid" ADD CONSTRAINT "VendorBid_vendorId_fkey" FOREIGN KEY ("vendorId") REFERENCES "Vendor"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

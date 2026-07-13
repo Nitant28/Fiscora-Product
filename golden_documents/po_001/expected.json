@@ -1,0 +1,7 @@
+{
+  "document_type": "purchase_order",
+  "vendor_name": "Example Supplier",
+  "po_number": "PO-001",
+  "total": 880.0,
+  "currency": "USD"
+}

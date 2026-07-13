@@ -1,0 +1,11 @@
+{
+  "name": "invoices",
+  "version": "2026-07-06",
+  "split": {
+    "train": "train",
+    "validation": "validation",
+    "test": "test"
+  },
+  "annotation_format": "json",
+  "description": "Benchmark dataset skeleton for invoice OCR and extraction evaluation."
+}

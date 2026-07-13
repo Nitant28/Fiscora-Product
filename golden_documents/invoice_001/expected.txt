@@ -1,0 +1,3 @@
+Example Vendor
+INV-001
+1250.00 USD

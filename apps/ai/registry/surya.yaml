@@ -1,0 +1,13 @@
+name: Surya
+version: "0.x"
+task: Reading order
+language:
+  - en
+gpu: false
+ram: 1GB
+license: Apache-2
+status: experimental
+accuracy:
+  invoices: 92.1
+  receipts: 90.8
+latency: 0.82

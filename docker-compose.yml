@@ -1,0 +1,39 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: fiscora-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: fiscora
+      POSTGRES_PASSWORD: fiscora
+      POSTGRES_DB: fiscora
+    # Host port 5433 (non-default) avoids clashing with any other local Postgres.
+    ports:
+      - "5433:5432"
+    # Named volume persists data across `docker compose down`/container recreation.
+    volumes:
+      - fiscora_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fiscora -d fiscora"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7
+    container_name: fiscora-redis
+    restart: always
+    # Host port 6380 (non-default) avoids clashing with any other local Redis.
+    ports:
+      - "6380:6379"
+    volumes:
+      - fiscora_redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  fiscora_pgdata:
+  fiscora_redisdata:

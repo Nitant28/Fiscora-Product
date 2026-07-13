@@ -1,0 +1,7 @@
+{
+  "document_type": "invoice",
+  "vendor_name": "Example Vendor",
+  "invoice_number": "INV-001",
+  "amount": 1250.0,
+  "currency": "USD"
+}

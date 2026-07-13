@@ -1,0 +1,1879 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// --- SECTION: Invoices/Documents ---
+enum InvoiceStatus {
+  uploaded
+  queued
+  processing
+  processed
+  failed
+  approved
+  paid
+  rejected
+  in_review
+  escalated
+  clarification_requested
+  blocked
+}
+
+// --- SECTION: Procurement ---
+enum PurchaseOrderStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  PARTIALLY_RECEIVED
+  RECEIVED
+  CLOSED
+  CANCELLED
+}
+
+enum RequestStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  CONVERTED_TO_PO
+  BUDGET_EXCEEDED
+}
+
+// --- SECTION: Invoices/Documents ---
+enum MatchStatus {
+  PENDING
+  MATCHED
+  MISMATCH
+  PRICE_MISMATCH
+  QUANTITY_MISMATCH
+  NO_PO
+}
+
+// --- SECTION: Procurement ---
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+// --- SECTION: Invoices/Documents ---
+enum FlagCategory {
+  EXTRACTION
+  FINANCIAL
+  FRAUD
+  PROCUREMENT
+}
+
+// --- SECTION: Auth ---
+enum UserRole {
+  EMPLOYEE
+  MANAGER
+  DIRECTOR
+  PROCUREMENT
+  FINANCE
+  CFO
+  AUDITOR
+  ADMIN
+  VENDOR
+}
+
+// Account lifecycle (Sprint 18B). Users are never hard-deleted — they are suspended.
+enum UserStatus {
+  ACTIVE
+  INVITED
+  SUSPENDED
+  LOCKED
+  DELETED
+}
+
+// Employee invitation lifecycle (Sprint 18B).
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  CANCELLED
+  REVOKED
+}
+
+// Tenant lifecycle (Sprint 18A hardening). Suspended tenants block all logins.
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum NotificationSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum AccessRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  EXPIRED
+}
+
+enum BillingInvoiceStatus {
+  DRAFT
+  OPEN
+  PAID
+  VOID
+}
+
+enum BillingPaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+}
+
+// --- SECTION: Procurement ---
+enum VendorStatus {
+  DRAFT
+  INVITED
+  UNDER_REVIEW
+  COMPLIANCE_REVIEW
+  PENDING_REVIEW
+  APPROVED
+  ACTIVE
+  SUSPENDED
+  REJECTED
+}
+
+enum RFQStatus {
+  DRAFT
+  OPEN
+  CLOSED
+  AWARDED
+}
+
+// --- SECTION: Payments ---
+enum PaymentStatus {
+  SCHEDULED
+  READY
+  PROCESSING
+  PAID
+  FAILED
+}
+
+enum ContractStatus {
+  DRAFT
+  ACTIVE
+  EXPIRING
+  EXPIRED
+  TERMINATED
+}
+
+enum SavingsEventType {
+  RFQ_SAVINGS
+  NEGOTIATION_SAVINGS
+  CONTRACT_SAVINGS
+  BUDGET_AVOIDANCE
+  FRAUD_PREVENTED
+  VENDOR_CONSOLIDATION
+}
+
+enum VendorDocType {
+  GST
+  PAN
+  MSME
+  BANK_ACCOUNT
+  INSURANCE
+  COMPLIANCE
+  MSA
+  NDA
+}
+
+enum DocumentVerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+  EXPIRED
+}
+
+model Tenant {
+  id Int @id @default(autoincrement())
+
+  name String
+
+  slug String @unique
+
+  industry String?
+
+  currency String? @default("INR")
+
+  timezone String? @default("Asia/Kolkata")
+
+  status TenantStatus @default(ACTIVE)
+
+  onboardingComplete Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  users User[]
+
+  vendors Vendor[]
+
+  requests PurchaseRequest[]
+
+  purchaseOrders PurchaseOrder[]
+
+  documents Document[]
+
+  departments Department[]
+
+  auditLogs AuditLog[]
+
+  contracts Contract[]
+
+  payments Payment[]
+
+  rfqs RFQ[]
+
+  importJobs ImportJob[]
+
+  invitations Invitation[]
+
+  notifications Notification[]
+
+  accessRequests AccessRequest[]
+
+  subscription Subscription?
+
+  usageRecords UsageRecord[]
+
+  billingInvoices BillingInvoice[]
+
+  apiKeys ApiKey[]
+}
+
+model ApiKey {
+  id Int @id @default(autoincrement())
+
+  tenantId Int
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  name String
+
+  keyPrefix String
+
+  keyHash String @unique
+
+  scopes String[]
+
+  lastUsedAt DateTime?
+
+  expiresAt DateTime?
+
+  revokedAt DateTime?
+
+  createdById Int?
+
+  createdByName String?
+
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([keyPrefix])
+}
+
+model ImportJob {
+  id Int @id @default(autoincrement())
+
+  tenantId Int
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  fileName String
+
+  entity String
+
+  successCount Int @default(0)
+
+  warningCount Int @default(0)
+
+  failedCount Int @default(0)
+
+  actorUserId Int?
+
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([createdAt])
+}
+
+model Department {
+  id Int @id @default(autoincrement())
+
+  tenantId Int
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  name String
+
+  budget Float
+
+  reservedBudget Float @default(0)
+
+  committedBudget Float @default(0)
+
+  spentBudget Float @default(0)
+
+  createdAt DateTime @default(now())
+
+  requests PurchaseRequest[]
+  users User[]
+  catalogItems CatalogItem[]
+  savingsEvents SavingsEvent[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+}
+
+model Vendor {
+  id Int @id @default(autoincrement())
+
+  tenantId Int
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  name String
+
+  vendorCode String?
+
+  email String?
+
+  gstNumber String?
+
+  panNumber String?
+
+  vendorType String @default("SUPPLIER")
+
+  phone String?
+
+  addressLine1 String?
+
+  city String?
+
+  state String?
+
+  country String @default("India")
+
+  isVerified Boolean @default(false)
+
+  isOcrGenerated Boolean @default(false)
+
+  tallyReadinessScore Int @default(0)
+
+  bankAccount String?
+
+  ifscCode String?
+
+  msmeNumber String?
+
+  portalEnabled Boolean @default(false)
+
+  portalEmail String?
+
+  portalPasswordHash String?
+
+  kycStatus String @default("PENDING")
+
+  lastLoginAt DateTime?
+
+  paymentTerms String?
+
+  paymentTermsDays Int @default(30)
+
+  msmeRegistered Boolean @default(false)
+
+  contactPerson String?
+
+  contractExpiry DateTime?
+
+  preferredVendor Boolean @default(false)
+
+  onTimeDeliveryRate Float?
+
+  status VendorStatus @default(ACTIVE)
+
+  deletedAt DateTime?
+
+  riskLevel RiskLevel @default(LOW)
+
+  totalSpend Float @default(0)
+
+  invoiceCount Int @default(0)
+
+  averageInvoice Float @default(0)
+
+  riskScore Int @default(100)
+
+  complianceRiskScore Int @default(0)
+
+  reliabilityScore Int @default(0)
+
+  deliveryScore Int @default(0)
+
+  priceCompetitivenessScore Int @default(0)
+
+  invoiceAccuracyScore Int @default(0)
+
+  responseTimeScore Int @default(0)
+
+  procurementScore Float?
+
+  lastInvoiceDate DateTime?
+
+  createdAt DateTime @default(now())
+
+  documents Document[]
+
+  corrections ExtractionCorrection[]
+
+  onboardingDocs VendorDocument[]
+
+  invites VendorInvite[]
+
+  contracts Contract[]
+
+  catalogItems CatalogItem[]
+
+  awardedRFQs RFQ[] @relation("AwardedVendor")
+
+  bids VendorBid[]
+
+  rfqSavings RFQSavings[]
+
+  payments Payment[]
+
+  portalSessions VendorPortalSession[]
+
+  gstValidations GstValidation[]
+
+  savingsEvents SavingsEvent[]
+
+  @@unique([tenantId, name])
+  @@unique([tenantId, vendorCode])
+  @@unique([tenantId, portalEmail])
+  @@index([tenantId])
+}
+
+model GstValidation {
+  id String @id @default(cuid())
+
+  gstNumber String
+
+  vendorId Int?
+
+  vendor Vendor? @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+
+  isValid Boolean
+
+  stateCode String?
+
+  panDerived String?
+
+  lastCheckedAt DateTime
+
+  createdAt DateTime @default(now())
+
+  @@index([gstNumber])
+  @@index([vendorId])
+}
+
+model VendorPortalSession {
+  id Int @id @default(autoincrement())
+
+  vendorId Int
+
+  vendor Vendor @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  token String @unique
+
+  expiresAt DateTime
+
+  createdAt DateTime @default(now())
+}
+
+model PurchaseRequest {
+  id Int @id @default(autoincrement())
+
+  tenantId Int
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  title String
+
+  description String?
+
+  vendorName String?
+
+  category String?
+
+  categoryId Int?
+
+  spendCategory SpendCategory? @relation(fields: [categoryId], references: [id])
+
+  requester String
+
+  requesterId Int?
+
+  requesterUser User? @relation("RequesterRequests", fields: [requesterId], references: [id])
+
+  estimatedAmount Float
+
+  status RequestStatus @default(DRAFT)
+
+  departmentId Int?
+
+  department Department? @relation(fields: [departmentId], references: [id])
+
+  catalogItemId Int?
+
+  catalogItem CatalogItem? @relation(fields: [catalogItemId], references: [id])
+
+  fromCatalog Boolean @default(false)
+
+  assignedApprover String?
+
+  slaDueAt DateTime?
+
+  slaEscalationLevel Int @default(0)
+
+  approvedBy String?
+
+  approvedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  purchaseOrders PurchaseOrder[]
+
+  flags PurchaseRequestFlag[]
+
+  @@index([tenantId])
+}
+
+model PurchaseRequestFlag {
+  id Int @id @default(autoincrement())
+
+  requestId Int
+
+  request PurchaseRequest @relation(fields: [requestId], references: [id])
+
+  type String
+
+  severity String
+
+  message String
+
+  resolved Boolean @default(false)
+
+  metadata Json?
+
+  createdAt DateTime @default(now())
+}
+
+model PurchaseOrder {
+  id Int @id @default(autoincrement())
+
+  tenantId Int
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  poNumber String
+
+  vendorName String
+
+  requestId Int?
+
+  amount Float
+
+  orderedQuantity Int?
+
+  status PurchaseOrderStatus @default(DRAFT)
+
+  leadTimeDays Int?
+
+  warrantyMonths Int?
+
+  sentAt DateTime?
+
+  acceptedAt DateTime?
+
+  receivedAt DateTime?
+
+  closedAt DateTime?
+
+  deletedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  request PurchaseRequest? @relation(fields: [requestId], references: [id])
+
+  contractId Int?
+
+  contract Contract? @relation(fields: [contractId], references: [id])
+
+  rfq RFQ?
+
+  invoices Document[]
+
+  threeWayMatches ThreeWayMatch[]
+
+  goodsReceipts GoodsReceipt[]
+
+  savings Savings?
+
+  @@unique([tenantId, poNumber])
+  @@index([tenantId])
+}
+
+model Savings {
+  id Int @id @default(autoincrement())
+
+  purchaseOrderId Int @unique
+
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+
+  requestedPrice Float
+
+  negotiatedPrice Float
+
+  marketBenchmark Float?
+
+  savings Float
+
+  createdAt DateTime @default(now())
+}
+
+model SpendCategory {
+  id Int @id @default(autoincrement())
+
+  name String @unique
+
+  code String @unique
+
+  active Boolean @default(true)
+
+  createdAt DateTime @default(now())
+
+  requests PurchaseRequest[]
+
+  rfqs RFQ[]
+}
+
+model RFQ {
+  id Int @id @default(autoincrement())
+
+  tenantId Int
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  title String
+
+  description String?
+
+  status RFQStatus @default(DRAFT)
+
+  categoryId Int
+
+  category SpendCategory @relation(fields: [categoryId], references: [id])
+
+  createdById Int
+
+  createdBy User @relation(fields: [createdById], references: [id])
+
+  awardedVendorId Int?
+
+  awardedVendor Vendor? @relation("AwardedVendor", fields: [awardedVendorId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+
+  bids VendorBid[]
+
+  savings RFQSavings?
+
+  purchaseOrderId Int? @unique
+
+  purchaseOrder PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id])
+
+  @@index([tenantId])
+}
+
+model RFQSavings {
+  id Int @id @default(autoincrement())
+
+  rfqId Int @unique
+
+  winningVendorId Int
+
+  highestBid Float
+
+  winningBid Float
+
+  savings Float
+
+  createdAt DateTime @default(now())
+
+  rfq RFQ @relation(fields: [rfqId], references: [id])
+
+  vendor Vendor @relation(fields: [winningVendorId], references: [id])
+}
+
+model VendorBid {
+  id Int @id @default(autoincrement())
+
+  rfqId Int
+
+  vendorId Int
+
+  quotedAmount Float
+
+  leadTimeDays Int
+
+  warrantyMonths Int
+
+  notes String?
+
+  score Float @default(0)
+
+  submittedAt DateTime @default(now())
+
+  rfq RFQ @relation(fields: [rfqId], references: [id])
+
+  vendor Vendor @relation(fields: [vendorId], references: [id])
+}
+
+model Document {
+  id Int @id @default(autoincrement())
+
+  tenantId Int
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  fileName String?
+
+  fileUrl String?
+
+  status InvoiceStatus
+
+  vendorName String?
+
+  invoiceNumber String?
+
+  invoiceDate String?
+
+  customerName String?
+
+  totalAmount Float?
+
+  currency String?
+
+  rawText String?
+
+  extractedData Json?
+
+  vendorId Int?
+
+  vendor Vendor? @relation(fields: [vendorId], references: [id])
+
+  purchaseOrderId Int?
+
+  purchaseOrder PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id])
+
+  poMatchConfidence Float?
+
+  matchedPoNumber String?
+
+  flags InvoiceFlag[]
+
+  lineItems LineItem[]
+
+  createdAt DateTime @default(now())
+
+  subtotal Float?
+
+  shipping Float?
+
+  tax Float?
+
+  cgst Float?
+
+  sgst Float?
+
+  igst Float?
+
+  gstPercent Float?
+
+  discount Float?
+
+  balanceDue Float?
+
+  confidenceScore Int @default(0)
+
+  extractionConfidence Float @default(0)
+
+  financialConfidence Float @default(0)
+
+  lineItemConfidence Float @default(0)
+
+  vendorConfidence Float @default(0)
+
+  dataQualityScore Float @default(0)
+
+  requiresReview Boolean @default(false)
+
+  riskScore Int @default(100)
+
+  actions InvoiceAction[]
+
+  approvalHistory ApprovalHistory[]
+
+  threeWayMatches ThreeWayMatch[]
+
+  payment Payment?
+
+  deletedAt DateTime?
+
+  @@unique([tenantId, invoiceNumber])
+  @@index([tenantId])
+}
+
+model ThreeWayMatch {
+  id Int @id @default(autoincrement())
+
+  poId Int
+
+  invoiceId Int
+
+  poAmount Float?
+
+  invoiceAmount Float?
+
+  poQuantity Int?
+
+  receivedQuantity Int?
+
+  invoicedQuantity Int?
+
+  status MatchStatus @default(PENDING)
+
+  variance Float?
+
+  createdAt DateTime @default(now())
+
+  purchaseOrder PurchaseOrder @relation(fields: [poId], references: [id])
+
+  invoice Document @relation(fields: [invoiceId], references: [id])
+
+  @@unique([poId, invoiceId])
+}
+
+model GoodsReceipt {
+  id Int @id @default(autoincrement())
+
+  purchaseOrderId Int
+
+  quantityOrdered Int
+
+  quantityReceived Int
+
+  receivedById Int
+
+  receivedDate DateTime @default(now())
+
+  notes String?
+
+  createdAt DateTime @default(now())
+
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
+
+  receiver User @relation(fields: [receivedById], references: [id])
+}
+
+model LineItem {
+  id Int @id @default(autoincrement())
+
+  description String
+
+  quantity Float?
+
+  rate Float?
+
+  amount Float?
+
+  category String?
+
+  documentId Int
+
+  document Document @relation(fields: [documentId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+model ApprovalRule {
+  id Int @id @default(autoincrement())
+
+  name String?
+
+  department String?
+
+  category String?
+
+  minAmount Float
+
+  maxAmount Float?
+
+  approver String
+
+  priority Int @default(0)
+
+  active Boolean @default(true)
+
+  createdAt DateTime @default(now())
+}
+
+model Permission {
+  id          Int      @id @default(autoincrement())
+  key         String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+
+  roles RolePermission[]
+}
+
+model RolePermission {
+  id           Int        @id @default(autoincrement())
+  role         UserRole
+  permissionId Int
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@unique([role, permissionId])
+  @@index([role])
+}
+
+model AuditLog {
+  id Int @id @default(autoincrement())
+
+  tenantId Int
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  entityType String
+
+  entityId Int
+
+  action String
+
+  actor String
+
+  actorUserId Int?
+
+  actorRole UserRole?
+
+  permission String?
+
+  oldValue Json?
+
+  newValue Json?
+
+  metadata Json?
+
+  requestId String?
+
+  ipAddress String?
+
+  userAgent String?
+
+  reason String?
+
+  createdAt DateTime @default(now())
+
+  @@index([actorUserId])
+  @@index([actorRole])
+  @@index([permission])
+  @@index([requestId])
+  @@index([tenantId])
+  @@index([entityType, entityId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model ExtractionCorrection {
+  id Int @id @default(autoincrement())
+
+  field String
+
+  originalValue String
+
+  correctedValue String
+
+  documentId Int?
+
+  vendorId Int?
+
+  vendor Vendor? @relation(fields: [vendorId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+model InvoiceAction {
+  id Int @id @default(autoincrement())
+
+  documentId Int
+
+  action String
+
+  actorName String
+
+  reason String?
+
+  createdAt DateTime @default(now())
+
+  document Document @relation(fields: [documentId], references: [id])
+}
+
+model ApprovalHistory {
+  id Int @id @default(autoincrement())
+
+  documentId Int
+
+  action String
+
+  reason String?
+
+  user String
+
+  createdAt DateTime @default(now())
+
+  document Document @relation(fields: [documentId], references: [id])
+}
+
+model InvoiceFlag {
+  id Int @id @default(autoincrement())
+
+  documentId Int
+
+  type String
+
+  flagCategory FlagCategory @default(FINANCIAL)
+
+  severity String
+
+  message String
+
+  resolved Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  document Document @relation(fields: [documentId], references: [id])
+}
+
+model User {
+  id Int @id @default(autoincrement())
+
+  clerkId String? @unique
+
+  lastLoginAt DateTime?
+
+  tenantId Int
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  email String
+
+  name String
+
+  // Kept required during the Clerk migration to preserve a legacy-login rollback path.
+  // Will become nullable, then be removed, only after every user authenticates via Clerk.
+  passwordHash String
+
+  role UserRole
+
+  status UserStatus @default(ACTIVE)
+
+  // --- Brute-force lockout (Sprint 18A hardening) ---
+  failedLoginAttempts Int @default(0)
+
+  lockedUntil DateTime?
+
+  // Session invalidation: tokens/sessions issued before this instant are rejected.
+  // Bumped on force-logout / suspend so existing JWTs die immediately.
+  sessionsValidFrom DateTime?
+
+  // --- Employee profile (Sprint 18B) — owned by Fiscora, never by Clerk ---
+  employeeId String?
+
+  jobTitle String?
+
+  phone String?
+
+  approvalLimit Float?
+
+  costCenter String?
+
+  language String? @default("en")
+
+  timezone String?
+
+  avatarUrl String?
+
+  // Reporting line (self-relation).
+  managerId Int?
+
+  manager User? @relation("UserManager", fields: [managerId], references: [id])
+
+  directReports User[] @relation("UserManager")
+
+  // Who invited this user (self-relation).
+  invitedById Int?
+
+  invitedBy User? @relation("UserInvitedBy", fields: [invitedById], references: [id])
+
+  invitedUsers User[] @relation("UserInvitedBy")
+
+  departmentId Int?
+
+  department Department? @relation(fields: [departmentId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  sessions Session[]
+
+  notifications Notification[]
+
+  requests PurchaseRequest[] @relation("RequesterRequests")
+
+  rfqs RFQ[]
+
+  goodsReceipts GoodsReceipt[]
+
+  loginHistory LoginHistory[]
+
+  invitations Invitation[] @relation("UserInvitations")
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+  @@index([status])
+}
+
+// Employee invitations (Sprint 18A.1). The DB row is created first; Clerk sends the email.
+// The invitation lifecycle is tracked here; role/department live on the linked User.
+model Invitation {
+  id Int @id @default(autoincrement())
+
+  tenantId Int
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  // The Fiscora user this invite provisions. Optional until accepted/linked.
+  userId Int?
+
+  user User? @relation("UserInvitations", fields: [userId], references: [id])
+
+  email String
+
+  status InvitationStatus @default(PENDING)
+
+  // Internal token (fallback / audit). Clerk owns the real invitation email.
+  token String @unique
+
+  // Clerk's invitation id — lets us revoke/inspect without searching by email.
+  clerkInvitationId String?
+
+  // Admin (User.id) who issued the invite.
+  invitedById Int?
+
+  expiresAt DateTime
+
+  acceptedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([email])
+  @@index([status])
+}
+
+// Login history (Sprint 18A.1) — security/audit visibility.
+model LoginHistory {
+  id Int @id @default(autoincrement())
+
+  userId Int
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  tenantId Int
+
+  ipAddress String?
+
+  userAgent String?
+
+  browser String?
+
+  os String?
+
+  country String?
+
+  success Boolean @default(true)
+
+  failureReason String?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([tenantId])
+  @@index([createdAt])
+}
+
+model Session {
+  id Int @id @default(autoincrement())
+
+  userId Int
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  token String @unique
+
+  expiresAt DateTime
+
+  createdAt DateTime @default(now())
+}
+
+model Notification {
+  id Int @id @default(autoincrement())
+
+  tenantId Int
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  userId Int
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title String
+
+  message String
+
+  type String @default("GENERAL")
+
+  severity NotificationSeverity @default(INFO)
+
+  entityType String?
+
+  entityId Int?
+
+  actionUrl String?
+
+  read Boolean @default(false)
+
+  readAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([userId, read])
+  @@index([userId, createdAt])
+}
+
+model AccessRequest {
+  id Int @id @default(autoincrement())
+
+  tenantId Int
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  email String
+
+  name String
+
+  clerkId String?
+
+  requestedDepartment String?
+
+  reason String?
+
+  status AccessRequestStatus @default(PENDING)
+
+  reviewedById Int?
+
+  createdUserId Int?
+
+  requestedAt DateTime @default(now())
+
+  reviewedAt DateTime?
+
+  @@index([tenantId, status])
+  @@index([email])
+}
+
+// --- SECTION: Billing (Sprint 19 — commercial layer) ---
+
+model Plan {
+  id Int @id @default(autoincrement())
+
+  slug String @unique
+
+  name String
+
+  description String?
+
+  priceMonthly Int @default(0)
+
+  currency String @default("INR")
+
+  seatLimit Int?
+
+  sortOrder Int @default(0)
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+
+  features PlanFeature[]
+
+  subscriptions Subscription[]
+}
+
+model Feature {
+  id Int @id @default(autoincrement())
+
+  key String @unique
+
+  name String
+
+  description String?
+
+  plans PlanFeature[]
+}
+
+model PlanFeature {
+  id Int @id @default(autoincrement())
+
+  planId Int
+
+  featureId Int
+
+  enabled Boolean @default(true)
+
+  limitValue Int?
+
+  plan Plan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  feature Feature @relation(fields: [featureId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, featureId])
+}
+
+model Subscription {
+  id Int @id @default(autoincrement())
+
+  tenantId Int @unique
+
+  planId Int
+
+  status SubscriptionStatus @default(TRIAL)
+
+  trialEndsAt DateTime?
+
+  currentPeriodStart DateTime @default(now())
+
+  currentPeriodEnd DateTime?
+
+  cancelledAt DateTime?
+
+  seatLimitOverride Int?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  plan Plan @relation(fields: [planId], references: [id])
+
+  invoices BillingInvoice[]
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+
+  @@index([planId])
+  @@index([status])
+}
+
+model UsageRecord {
+  id Int @id @default(autoincrement())
+
+  tenantId Int
+
+  metric String
+
+  value Int @default(0)
+
+  periodStart DateTime
+
+  periodEnd DateTime
+
+  recordedAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, metric, periodStart])
+  @@index([tenantId, metric])
+}
+
+model BillingInvoice {
+  id Int @id @default(autoincrement())
+
+  tenantId Int
+
+  subscriptionId Int?
+
+  invoiceNumber String?
+
+  amount Int
+
+  currency String @default("INR")
+
+  status BillingInvoiceStatus @default(DRAFT)
+
+  periodStart DateTime?
+
+  periodEnd DateTime?
+
+  dueDate DateTime?
+
+  paidAt DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id])
+
+  payments BillingPayment[]
+
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, status])
+}
+
+model BillingPayment {
+  id Int @id @default(autoincrement())
+
+  invoiceId Int
+
+  provider String @default("manual")
+
+  providerRef String?
+
+  amount Int
+
+  currency String @default("INR")
+
+  status BillingPaymentStatus @default(PENDING)
+
+  paidAt DateTime?
+
+  invoice BillingInvoice @relation(fields: [invoiceId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([invoiceId])
+}
+
+model Coupon {
+  id Int @id @default(autoincrement())
+
+  code String @unique
+
+  percentOff Int?
+
+  amountOff Int?
+
+  validUntil DateTime?
+
+  maxRedemptions Int?
+
+  redemptionCount Int @default(0)
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+}
+
+model BillingWebhookEvent {
+  id Int @id @default(autoincrement())
+
+  provider String
+
+  eventType String
+
+  providerRef String?
+
+  payload Json
+
+  processedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([provider, eventType])
+}
+
+model NotificationTemplate {
+  id Int @id @default(autoincrement())
+
+  event String @unique
+
+  subject String
+
+  body String
+
+  enabled Boolean @default(true)
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+}
+
+model NotificationQueue {
+  id Int @id @default(autoincrement())
+
+  event String
+
+  recipientEmail String
+
+  recipientUserId Int?
+
+  subject String
+
+  body String
+
+  status String @default("PENDING")
+
+  attempts Int @default(0)
+
+  lastError String?
+
+  sentAt DateTime?
+
+  createdAt DateTime @default(now())
+}
+
+model NotificationDispatch {
+  id Int @id @default(autoincrement())
+
+  event String
+
+  entityType String
+
+  entityId Int
+
+  createdAt DateTime @default(now())
+
+  @@unique([event, entityType, entityId])
+}
+
+model VendorInvite {
+  id Int @id @default(autoincrement())
+
+  email String
+
+  token String @unique
+
+  vendorId Int?
+
+  vendor Vendor? @relation(fields: [vendorId], references: [id])
+
+  expiresAt DateTime
+
+  acceptedAt DateTime?
+
+  createdAt DateTime @default(now())
+}
+
+model VendorDocument {
+  id Int @id @default(autoincrement())
+
+  vendorId Int
+
+  vendor Vendor @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  type VendorDocType
+
+  fileName String
+
+  fileUrl String
+
+  status String @default("PENDING")
+
+  verificationStatus DocumentVerificationStatus @default(PENDING)
+
+  expiryDate DateTime?
+
+  uploadedAt DateTime @default(now())
+
+  createdAt DateTime @default(now())
+}
+
+model Contract {
+  id Int @id @default(autoincrement())
+
+  tenantId Int
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  contractNumber String
+
+  title String
+
+  vendorId Int
+
+  vendor Vendor @relation(fields: [vendorId], references: [id])
+
+  value Decimal @db.Decimal(14, 2)
+
+  startDate DateTime
+
+  endDate DateTime
+
+  renewalDate DateTime?
+
+  autoRenew Boolean @default(false)
+
+  renewalNoticeDays Int? @default(60)
+
+  annualValue Decimal? @db.Decimal(14, 2)
+
+  ownerDepartment String?
+
+  contractCategory String?
+
+  documentUrl String?
+
+  status ContractStatus @default(DRAFT)
+
+  deletedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  purchaseOrders PurchaseOrder[]
+
+  @@unique([tenantId, contractNumber])
+  @@index([tenantId])
+}
+
+model Payment {
+  id Int @id @default(autoincrement())
+
+  tenantId Int
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  paymentNumber String?
+
+  vendorId Int
+
+  documentId Int @unique
+
+  amount Float
+
+  currency String @default("INR")
+
+  paymentMethod String?
+
+  bankReference String?
+
+  approvalStatus String?
+
+  dueDate DateTime
+
+  paidDate DateTime?
+
+  status PaymentStatus @default(SCHEDULED)
+
+  deletedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  vendor Vendor @relation(fields: [vendorId], references: [id])
+
+  document Document @relation(fields: [documentId], references: [id])
+
+  @@unique([tenantId, paymentNumber])
+  @@index([tenantId])
+}
+
+model CatalogItem {
+  id Int @id @default(autoincrement())
+
+  name String
+
+  description String?
+
+  vendorId Int
+
+  vendor Vendor @relation(fields: [vendorId], references: [id])
+
+  price Float
+
+  departmentId Int?
+
+  department Department? @relation(fields: [departmentId], references: [id])
+
+  active Boolean @default(true)
+
+  createdAt DateTime @default(now())
+
+  requests PurchaseRequest[]
+}
+
+model ErrorLog {
+  id String @id @default(cuid())
+
+  requestId String?
+
+  userId String?
+
+  route String
+
+  method String
+
+  error String
+
+  stack String?
+
+  createdAt DateTime @default(now())
+
+  @@index([requestId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model ApprovalToken {
+  id String @id @default(cuid())
+
+  token String @unique
+
+  approvalId String
+
+  entityType String @default("PurchaseRequest")
+
+  action String
+
+  recipientUserId Int?
+
+  recipientEmail String?
+
+  expiresAt DateTime
+
+  usedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([approvalId])
+}
+
+enum BackupRunStatus {
+  RUNNING
+  SUCCESS
+  FAILED
+}
+
+model BackupRun {
+  id String @id @default(cuid())
+
+  startedAt DateTime @default(now())
+
+  completedAt DateTime?
+
+  sizeBytes BigInt?
+
+  status BackupRunStatus @default(RUNNING)
+
+  storageProvider String @default("local")
+
+  filePath String?
+
+  errorMessage String?
+
+  restoreVerified Boolean @default(false)
+
+  triggeredBy String?
+
+  actorUserId Int?
+
+  createdAt DateTime @default(now())
+
+  @@index([startedAt])
+  @@index([status])
+}
+
+model TallyExportAudit {
+  id String @id @default(cuid())
+
+  exportType String
+
+  filename String
+
+  rowCount Int
+
+  excludedCount Int @default(0)
+
+  filters Json?
+
+  actorUserId Int?
+
+  actorName String
+
+  actorRole String?
+
+  createdAt DateTime @default(now())
+
+  @@index([exportType])
+  @@index([createdAt])
+}
+
+model SavingsEvent {
+  id Int @id @default(autoincrement())
+
+  type SavingsEventType
+
+  amount Float
+
+  currency String @default("INR")
+
+  title String?
+
+  description String?
+
+  vendorId Int?
+
+  vendor Vendor? @relation(fields: [vendorId], references: [id])
+
+  purchaseRequestId Int?
+
+  rfqId Int?
+
+  contractId Int?
+
+  departmentId Int?
+
+  department Department? @relation(fields: [departmentId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([type])
+  @@index([createdAt])
+}

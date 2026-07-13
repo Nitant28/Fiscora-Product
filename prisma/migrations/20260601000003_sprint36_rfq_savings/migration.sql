@@ -1,0 +1,18 @@
+-- Sprint 3.6: RFQ Sourcing Savings
+
+CREATE TABLE "RFQSavings" (
+    "id" SERIAL NOT NULL,
+    "rfqId" INTEGER NOT NULL,
+    "winningVendorId" INTEGER NOT NULL,
+    "highestBid" DOUBLE PRECISION NOT NULL,
+    "winningBid" DOUBLE PRECISION NOT NULL,
+    "savings" DOUBLE PRECISION NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "RFQSavings_pkey" PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX "RFQSavings_rfqId_key" ON "RFQSavings"("rfqId");
+
+ALTER TABLE "RFQSavings" ADD CONSTRAINT "RFQSavings_rfqId_fkey" FOREIGN KEY ("rfqId") REFERENCES "RFQ"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "RFQSavings" ADD CONSTRAINT "RFQSavings_winningVendorId_fkey" FOREIGN KEY ("winningVendorId") REFERENCES "Vendor"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

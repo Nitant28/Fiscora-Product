@@ -1,0 +1,14 @@
+name: PaddleOCR
+version: "3.0"
+task: OCR
+language:
+  - en
+  - hi
+gpu: true
+ram: 2GB
+license: Apache-2
+status: production
+accuracy:
+  invoices: 97.8
+  receipts: 95.3
+latency: 0.73
