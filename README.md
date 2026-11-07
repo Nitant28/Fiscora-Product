@@ -1,159 +1,222 @@
-# Turborepo starter
+# Fiscora
 
-This Turborepo starter is maintained by the Turborepo core team.
+**AI-powered procurement and spend-governance platform for growing businesses.**
 
-## Using this example
+Fiscora takes a purchase from request to payment in one system: a request is checked against the live department budget, routed to the right approver, sourced through competitive RFQs, turned into a purchase order, matched against the goods receipt and invoice, and only then paid. Every step is recorded in an audit trail.
 
-Run the following command:
+[Demo video](#demo) · [Features](#features) · [Architecture](#architecture) · [Getting started](#getting-started) · [Project structure](#project-structure) · [Status and roadmap](#status-and-roadmap)
 
-```sh
-npx create-turbo@latest
+---
+
+## The problem
+
+In most mid-sized companies, procurement lives in email threads, spreadsheets and a separate accounting tool. That causes predictable failures:
+
+- **Overspending:** requests are approved without anyone seeing how much of the department's budget is actually left.
+- **Approval bypass:** a large purchase is split into several small ones to stay under the approval limit.
+- **Weak sourcing:** vendors are chosen by habit rather than by comparing bids, so savings are never measured.
+- **Invoice errors and fraud:** duplicate invoices, invoices without a purchase order, and amounts that don't match what was delivered get paid anyway.
+- **No visibility:** finance and leadership find out about spend, contract renewals and vendor risk after the fact.
+
+## What Fiscora does
+
+| Stage | What happens |
+| --- | --- |
+| **Request** | Employees raise a purchase request, optionally describing it in plain English for the AI assistant to fill in. The live department budget (total, reserved, committed, available) is shown before submission. |
+| **Approve** | An approval matrix routes each request by amount (Manager → Director → CFO). Managers see budget impact and an AI recommendation, and can approve from the app or with a one-click email link. |
+| **Source** | Procurement runs RFQs, collects vendor bids (price, lead time, warranty), scores them, awards the winner and records the savings against the highest bid. |
+| **Order** | One click generates a purchase order, which moves through a tracked lifecycle: draft, sent, accepted, received, closed. |
+| **Receive and match** | Goods receipts are recorded, and each invoice is three-way matched against its PO and receipt. Mismatches and duplicates block payment. |
+| **Pay** | Payments are scheduled by due date and payment terms, and can be exported to Tally. |
+| **Analyse** | Dashboards for each role cover spend, savings, budgets, contracts, vendor risk and approval cycle times. |
+
+## Features
+
+**Workspaces by role**
+- Requester, Manager, Procurement, Finance and Executive workspaces, each focused on that role's decisions.
+- Role-based access control with permissions per role, and a dashboard summarising spend, approvals, invoices, contracts and vendor risk.
+
+**Budget and policy controls**
+- Budget engine with reserve, commit, release and reconciliation of department budgets.
+- Amount-based approval matrix and SLA tracking for approvals.
+- Split-purchase detection: related requests within a 7-day window are combined and checked against approval limits.
+- Maverick-spend analysis.
+
+**Sourcing and purchasing**
+- RFQs with vendor bid comparison, scoring, award and savings tracking.
+- Purchase orders generated from approved requests or awarded RFQs, with lifecycle tracking.
+- Catalog of approved items.
+
+**Invoice processing**
+- Invoice upload processed asynchronously by a background worker (BullMQ on Redis).
+- Extraction combines an LLM (Gemini) with rule-based heuristics; each field records where its value came from and a confidence score.
+- Data-quality scoring that keeps extraction errors separate from business risk.
+- Duplicate-invoice detection and three-way match (PO, goods receipt, invoice) that block payment until resolved.
+- Each invoice gets a recommended next step with a risk score and the evidence behind it.
+
+**Vendors and contracts**
+- Vendor onboarding by invite, with a vendor portal for uploading compliance documents (GST, PAN, bank details, insurance, MSA, NDA).
+- GSTIN validation, including PAN extraction and duplicate-GSTIN detection.
+- Vendor scoring, ranking, performance and risk signals.
+- Contract repository with utilization tracking, expiry alerts, a renewal queue and a contract action center.
+
+**Platform**
+- Multi-tenant: every tenant's data is isolated automatically at the data-access layer.
+- Authentication with Clerk; API keys for integrations.
+- Audit log of user actions, soft delete, and API rate limiting.
+- CSV import for vendors, departments, users and budgets.
+- Email notifications (Resend), subscription plans with feature gating, and an "Ask AI" copilot.
+- Tally export for Indian accounting workflows.
+
+## Demo
+
+> Add your demo video link here, e.g. `[Watch the 7-minute product walkthrough](https://...)`.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    U[Browser] --> W[apps/web<br/>Next.js]
+    W -->|REST| A[apps/api<br/>Fastify + TypeScript]
+    A --> P[(PostgreSQL<br/>Prisma ORM)]
+    A -->|enqueue invoice jobs| R[(Redis<br/>BullMQ)]
+    R --> K[apps/worker<br/>document processing]
+    K -->|preferred| AI[apps/ai<br/>Python FastAPI<br/>/v1/extract]
+    K -->|fallback| X[OCR + Gemini<br/>+ heuristics]
+    K --> P
+    A --> C[Clerk auth]
+    A --> E[Resend email]
 ```
 
-## What's inside?
+| App | Role | Stack |
+| --- | --- | --- |
+| `apps/web` | User interface for all workspaces, vendor portal and admin | Next.js, React, TypeScript, Clerk |
+| `apps/api` | Business logic: requests, approvals, budgets, RFQs, POs, matching, payments, contracts, analytics | Fastify, TypeScript, Prisma, Zod, BullMQ |
+| `apps/worker` | Background invoice and document processing | Node.js, BullMQ, Gemini, Sharp |
+| `apps/ai` | Document AI service (OCR, extraction, evaluation) | Python, FastAPI, OpenCV |
+| `prisma/` | Database schema (55 models) and migrations | PostgreSQL 16, Prisma 5 |
 
-This Turborepo includes the following packages/apps:
+**How multi-tenancy works:** each request sets the tenant in a request-scoped context, and a Prisma client extension (`apps/api/src/lib/prismaTenant.ts`) automatically adds the tenant filter to reads and writes on tenant-owned models. `pnpm --filter api verify:tenant` checks isolation.
 
-### Apps and Packages
+Architecture decisions are recorded in [`docs/adr`](docs/adr), and engineering standards in [`docs/engineering`](docs/engineering).
 
-- `docs`: a [Next.js](https://nextjs.org/) app
-- `web`: another [Next.js](https://nextjs.org/) app
-- `@repo/ui`: a stub React component library shared by both `web` and `docs` applications
-- `@repo/eslint-config`: `eslint` configurations (includes `eslint-config-next` and `eslint-config-prettier`)
-- `@repo/typescript-config`: `tsconfig.json`s used throughout the monorepo
+## Getting started
 
-Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
+### Prerequisites
 
-### Utilities
+- Node.js 18+ and pnpm 9
+- Docker (for PostgreSQL and Redis)
+- A [Clerk](https://clerk.com) application (for authentication)
+- Optional: a Gemini API key (invoice extraction), a Resend API key (email), Python 3.10+ (AI service)
 
-This Turborepo has some additional tools already setup for you:
+### 1. Install
 
-- [TypeScript](https://www.typescriptlang.org/) for static type checking
-- [ESLint](https://eslint.org/) for code linting
-- [Prettier](https://prettier.io) for code formatting
-
-### Build
-
-To build all apps and packages, run the following command:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
-
-```sh
-cd my-turborepo
-turbo build
+```bash
+git clone https://github.com/Nitant28/Fiscora-Product.git
+cd Fiscora-Product
+pnpm install
 ```
 
-Without global `turbo`, use your package manager:
+### 2. Start PostgreSQL and Redis
 
-```sh
-cd my-turborepo
-npx turbo build
-pnpm dlx turbo build
-pnpm exec turbo build
+```bash
+docker compose up -d
 ```
 
-You can build a specific package by using a [filter](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters):
+This starts PostgreSQL on port **5433** and Redis on port **6380**.
 
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
+### 3. Configure environment
 
-```sh
-turbo build --filter=docs
+```bash
+cp .env.example .env
 ```
 
-Without global `turbo`:
+Fill in at least:
 
-```sh
-npx turbo build --filter=docs
-pnpm exec turbo build --filter=docs
-pnpm exec turbo build --filter=docs
+| Variable | Example / purpose |
+| --- | --- |
+| `DATABASE_URL` | `postgresql://fiscora:fiscora@localhost:5433/fiscora` |
+| `REDIS_URL` | `redis://localhost:6380` |
+| `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY` | From your Clerk dashboard |
+| `GEMINI_API_KEY` | Invoice field extraction |
+| `RESEND_API_KEY`, `RESEND_FROM_EMAIL` | Approval and notification emails |
+| `AI_SERVICE_URL` | Python AI service, default `http://localhost:8000` |
+| `PORT` | API port, default `4000` |
+
+### 4. Create the database and demo data
+
+```bash
+pnpm exec prisma migrate deploy
+pnpm exec prisma db seed
 ```
 
-### Develop
+### 5. Run
 
-To develop all apps and packages, run the following command:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
-
-```sh
-cd my-turborepo
-turbo dev
+```bash
+pnpm dev                                   # API on :4000, web on :3000
+pnpm --filter worker exec tsx src/worker.ts  # invoice worker (separate terminal)
 ```
 
-Without global `turbo`, use your package manager:
+Optional AI service:
 
-```sh
-cd my-turborepo
-npx turbo dev
-pnpm exec turbo dev
-pnpm exec turbo dev
+```bash
+cd apps/ai
+pip install -r requirements.txt
+uvicorn app.main:app --port 8000
 ```
 
-You can develop a specific package by using a [filter](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters):
+Open http://localhost:3000.
 
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
+## Verification scripts
 
-```sh
-turbo dev --filter=web
+The `scripts/` folder contains end-to-end checks for core business rules, for example:
+
+```bash
+pnpm exec tsx scripts/verify-approval-matrix.ts
+pnpm exec tsx scripts/verify-split-purchase-fraud.ts
+pnpm exec tsx scripts/verify-duplicate-invoice-fraud.ts
+pnpm exec tsx scripts/verify-rbac.ts
+pnpm exec tsx scripts/verify-contract-expiry-alerts.ts
 ```
 
-Without global `turbo`:
+The Python AI service has unit, integration and golden-document tests:
 
-```sh
-npx turbo dev --filter=web
-pnpm exec turbo dev --filter=web
-pnpm exec turbo dev --filter=web
+```bash
+cd apps/ai && pytest
 ```
 
-### Remote Caching
+## Project structure
 
-> [!TIP]
-> Vercel Remote Cache is free for all plans. Get started today at [vercel.com](https://vercel.com/signup?utm_source=remote-cache-sdk&utm_campaign=free_remote_cache).
-
-Turborepo can use a technique known as [Remote Caching](https://turborepo.dev/docs/core-concepts/remote-caching) to share cache artifacts across machines, enabling you to share build caches with your team and CI/CD pipelines.
-
-By default, Turborepo will cache locally. To enable Remote Caching you will need an account with Vercel. If you don't have an account you can [create one](https://vercel.com/signup?utm_source=turborepo-examples), then enter the following commands:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
-
-```sh
-cd my-turborepo
-turbo login
+```text
+Fiscora-Product/
+├── apps/
+│   ├── web/        # Next.js frontend
+│   ├── api/        # Fastify API (modules/, services/, integrations/tally)
+│   ├── worker/     # BullMQ document-processing worker
+│   ├── ai/         # Python FastAPI document-AI service
+│   └── docs/       # Documentation site
+├── packages/       # Shared UI, ESLint and TypeScript config
+├── prisma/         # schema.prisma, migrations, seed
+├── scripts/        # Verification and backfill scripts
+├── golden_documents/  # Expected outputs for invoice, PO and receipt tests
+├── docs/           # ADRs and engineering standards
+└── docker-compose.yml
 ```
 
-Without global `turbo`, use your package manager:
+## Status and roadmap
 
-```sh
-cd my-turborepo
-npx turbo login
-pnpm exec turbo login
-pnpm exec turbo login
-```
+Fiscora is an actively developed portfolio project. The procurement workflow (requests, approvals, budgets, RFQs, POs, matching, payments, contracts, vendors, analytics) is implemented in the API and web apps.
 
-This will authenticate the Turborepo CLI with your [Vercel account](https://vercel.com/docs/concepts/personal-accounts/overview).
+In progress:
+- [ ] Python AI service: several OCR engines, image-enhancement steps and pipelines are still placeholders.
+- [ ] Replace the fallback OCR provider's public demo key with a configurable key or a self-hosted OCR engine.
+- [ ] Automated test suites for the API and worker, run in CI.
+- [ ] Production deployment guide.
 
-Next, you can link your Turborepo to your Remote Cache by running the following command from the root of your Turborepo:
+## Tech stack
 
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
+TypeScript · Next.js · React · Fastify · Prisma · PostgreSQL · Redis · BullMQ · Clerk · Resend · Gemini · Python · FastAPI · OpenCV · Docker · Turborepo · pnpm
 
-```sh
-turbo link
-```
+## Author
 
-Without global `turbo`:
-
-```sh
-npx turbo link
-pnpm exec turbo link
-pnpm exec turbo link
-```
-
-## Useful Links
-
-Learn more about the power of Turborepo:
-
-- [Tasks](https://turborepo.dev/docs/crafting-your-repository/running-tasks)
-- [Caching](https://turborepo.dev/docs/crafting-your-repository/caching)
-- [Remote Caching](https://turborepo.dev/docs/core-concepts/remote-caching)
-- [Filtering](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters)
-- [Configuration Options](https://turborepo.dev/docs/reference/configuration)
-- [CLI Usage](https://turborepo.dev/docs/reference/command-line-reference)
+**Nitant Singh** — [GitHub](https://github.com/Nitant28)
