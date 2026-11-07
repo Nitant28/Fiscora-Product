@@ -69,8 +69,7 @@ In most mid-sized companies, procurement lives in email threads, spreadsheets an
 - Tally export for Indian accounting workflows.
 
 ## Demo
-
-> Add your demo video link here, e.g. `[Watch the 7-minute product walkthrough](https://...)`.
+https://www.youtube.com/watch?v=tDqUaRhy91w&t=216s
 
 ## Architecture
 
